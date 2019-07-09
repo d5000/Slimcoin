@@ -1268,6 +1268,20 @@ const CBlockIndex *GetLastBlockIndex(const CBlockIndex *pindex, bool fProofOfSta
     return pindex;
 }
 
+// slimcoin: count proof-of-stake blocks in a row //HARDCAP PATCH//
+unsigned int GetPoSRowCount(const CBlockIndex *currentIndex)
+{   
+    // const CBlockIndex* currentIndex = pindex->pprev;
+    int nPoSBlockCount = 0;
+
+    while (currentIndex->IsProofOfStake())
+    { 
+        nPoSBlockCount++;
+        currentIndex = currentIndex->pprev;
+    }
+    return nPoSBlockCount;
+}
+
 static u32int GetNextTargetRequired(const CBlockIndex *pindexLast, bool fProofOfStake)
 {
     const CBigNum bnTargetLimit = fProofOfStake ? GetProofOfStakeLimit(pindexLast->nTime) : bnProofOfWorkLimit;
@@ -2533,6 +2547,13 @@ bool CBlock::AcceptBlock()
     // ppcoin: check that the block satisfies synchronized checkpoint
     if (!Checkpoints::CheckSync(hash, pindexPrev))
         return error("AcceptBlock() : rejected by synchronized checkpoint");
+
+    // slimcoin: Block is not accepted if there are more PoS blocks in a row than the PoS hard cap //HARDCAP PATCH//
+    if (IsProofOfStake() && (pindexPrev->nHeight >= POS_HARDCAP_HEIGHT))
+    { 
+        if (GetPoSRowCount(pindexPrev) >= POS_HARDCAP)
+            return error("AcceptBlock() : more than %d PoS blocks in a row", POS_HARDCAP);
+    }
 
     // Write block to history file
     if (!CheckDiskSpace(::GetSerializeSize(*this, SER_DISK, CLIENT_VERSION)))
@@ -5445,6 +5466,14 @@ void SlimCoinMiner(CWallet *pwallet, bool fProofOfStake)
         //
         unsigned int nTransactionsUpdatedLast = nTransactionsUpdated;
         CBlockIndex* pindexPrev = pindexBest;
+
+        // slimcoin: PoS blocks won't be accepted if there are more blocks in a row than the PoS hardcap //HARDCAP PATCH//
+        if ((fProofOfStake) && (pindexPrev->nHeight >= POS_HARDCAP_HEIGHT))
+        { 
+            if (GetPoSRowCount(pindexPrev) >= POS_HARDCAP)
+                return;
+        }
+
         boost::movelib::unique_ptr<CBlock> pblock(CreateNewBlock(pwallet, fProofOfStake));
         if (!pblock.get())
             return;
