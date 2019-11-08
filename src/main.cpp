@@ -5420,7 +5420,7 @@ void SlimCoinMiner(CWallet *pwallet, bool fProofOfStake)
         if ((fProofOfStake) && (pindexPrev->nHeight >= POS_HARDCAP_HEIGHT))
         { 
             if (GetPoSRowCount(pindexPrev) >= POS_HARDCAP)
-                return;
+                continue; // was "return" before
         }
 
 #if BOOST_VERSION > 105600
